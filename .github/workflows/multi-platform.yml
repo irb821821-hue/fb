@@ -9,6 +9,9 @@ on:
 
 jobs:
   build:
+    env:
+      CMAKE_POLICY_VERSION_MINIMUM: "3.5"
+
     name: ${{ matrix.config.name }}
     runs-on: ${{ matrix.config.os }}
 
@@ -83,7 +86,9 @@ jobs:
           sdk: given
           target: ${{ matrix.config.target }}
           combine: true
-          configure-args: -DCPM_fmt_SOURCE=${{ steps.fmt.outputs.source }} -DSKIP_BUILDING_CODEGEN=OFF
+          configure-args: >-
+            -DCPM_fmt_SOURCE=${{ steps.fmt.outputs.source }}
+            -DSKIP_BUILDING_CODEGEN=OFF
 
   package:
     name: Package builds

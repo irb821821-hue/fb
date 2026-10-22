@@ -5,9 +5,9 @@
     "android": "2.2074",
     "mac": "2.2074"
   },
-  "id": "danek.fb",
-  "name": "fb",
+  "id": "yourname.mymod",
+  "name": "My Custom Mod",
   "version": "1.0.0",
-  "developer": "danek",
+  "developer": "YourName",
   "description": "A description of what my mod does."
 }

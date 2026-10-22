@@ -1,3 +1,4 @@
+
 name: Build Geode Mod
 
 on:
@@ -8,48 +9,42 @@ on:
 
 jobs:
   build:
+    name: ${{ matrix.config.name }}
+    runs-on: ${{ matrix.config.os }}
+
     strategy:
       fail-fast: false
       matrix:
         config:
           - name: Windows
             os: windows-latest
-            platform: Windows
+            target: Win64
+
           - name: macOS
             os: macos-latest
-            platform: macOS
+            target: MacOS
+
           - name: iOS
             os: macos-latest
-            platform: iOS
+            target: iOS
+
           - name: Android32
             os: ubuntu-latest
-            platform: Android32
+            target: Android32
+
           - name: Android64
             os: ubuntu-latest
-            platform: Android64
-
-    name: ${{ matrix.config.name }}
-    runs-on: ${{ matrix.config.os }}
+            target: Android64
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      # 1. Устанавливаем официальный Geode CLI
-      - name: Setup Geode CLI
-        uses: geode-sdk/cli/.github/actions/setup@main
-        with:
-         version: latest
-
-      # 2. Устанавливаем бинарные файлы SDK (загружает geodeConfig.cmake и зависимости)
-      - name: Install Geode SDK binaries
-        run: geode sdk install-binaries
-
-      # 3. Собираем сам мод
       - name: Build the mod
         uses: geode-sdk/build-geode-mod@main
         with:
           sdk: latest
-          platform: ${{ matrix.config.platform }}
+          target: ${{ matrix.config.target }}
+          combine: true
 
   package:
     name: Package builds
@@ -57,10 +52,12 @@ jobs:
     needs: [build]
 
     steps:
-      - uses: geode-sdk/build-geode-mod/combine@main
+      - name: Combine builds
+        uses: geode-sdk/build-geode-mod/combine@main
         id: package
-        
-      - uses: actions/upload-artifact@v4
+
+      - name: Upload build output
+        uses: actions/upload-artifact@v7
         with:
           name: Build Output
           path: ${{ steps.package.outputs.build-output }}

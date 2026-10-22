@@ -33,7 +33,16 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      
+
+      # 1. Устанавливаем официальный Geode CLI
+      - name: Install Geode CLI
+        uses: geode-sdk/install-cli@main
+
+      # 2. Устанавливаем бинарные файлы SDK (загружает geodeConfig.cmake и зависимости)
+      - name: Install Geode SDK binaries
+        run: geode sdk install-binaries
+
+      # 3. Собираем сам мод
       - name: Build the mod
         uses: geode-sdk/build-geode-mod@main
         with:

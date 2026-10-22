@@ -1,5 +1,6 @@
 #include <Geode/Geode.hpp>
 #include <Geode/modify/PlayLayer.hpp>
+#include <Geode/modify/CCKeyboardDispatcher.hpp>
 
 using namespace geode::prelude;
 
@@ -35,7 +36,26 @@ void logStageStatus() {
     }
 }
 
-// Hook into PlayLayer to intercept inputs and keyboard presses
+// Hook into the global keyboard dispatcher to catch F6 anywhere in-level
+class $modify(MyKeyboardDispatcher, CCKeyboardDispatcher) {
+    bool dispatchKeyboardMSG(cocos2d::enumKeyCodes key, bool down) {
+        // Trigger only on key down and specifically for the F6 key
+        if (down && key == cocos2d::enumKeyCodes::KEY_F6) {
+            // Check if we are actively playing inside a level
+            if (PlayLayer::get()) {
+                if (g_currentStage == BufferStage::OFF) {
+                    g_currentStage = BufferStage::STAGE_1;
+                } else {
+                    g_currentStage = static_cast<BufferStage>(static_cast<int>(g_currentStage) + 1);
+                }
+                logStageStatus();
+            }
+        }
+        return CCKeyboardDispatcher::dispatchKeyboardMSG(key, down);
+    }
+};
+
+// Hook into PlayLayer to intercept inputs and log simulation
 class $modify(BufferPlayLayer, PlayLayer) {
     bool init(GJGameLevel* level, bool useReplay, bool dontCreateObjects) {
         if (!PlayLayer::init(level, useReplay, dontCreateObjects)) {
@@ -51,24 +71,6 @@ class $modify(BufferPlayLayer, PlayLayer) {
         return true;
     }
 
-    // Intercept keyboard shortcuts (F6 Key)
-    void keyDown(enumKeyCodes key) {
-        if (key == KEY_F6) {
-            // Cycle through stages: Stage 1 -> 2 -> 3 -> 4 -> OFF -> Stage 1
-            if (g_currentStage == BufferStage::OFF) {
-                g_currentStage = BufferStage::STAGE_1;
-            } else {
-                g_currentStage = static_cast<BufferStage>(static_cast<int>(g_currentStage) + 1);
-            }
-            
-            // Print the cycle log in console
-            logStageStatus();
-            return; // Key handled
-        }
-
-        PlayLayer::keyDown(key);
-    }
-
     // Intercept player click/jump inputs
     void handleButton(bool down, int button, bool isPlayer1) {
         if (down && g_currentStage != BufferStage::OFF) {
@@ -81,13 +83,11 @@ class $modify(BufferPlayLayer, PlayLayer) {
                 default: break;
             }
 
-            // Simulate buffered prediction log output
-            float framesAt60 = (float)maxTicks / 4.0f; // Roughly calculating tick-to-frame ratio
+            float framesAt60 = (float)maxTicks / 4.0f;
             log::info("[InputBuffer] *** SAVED +{} TICKS ({:.2f} frames @ 60fps) PRESS! [Limit: {}] ***", 
                 maxTicks / 2, framesAt60 / 2.0f, maxTicks);
         }
 
-        // Pass input to game
         PlayLayer::handleButton(down, button, isPlayer1);
     }
 };

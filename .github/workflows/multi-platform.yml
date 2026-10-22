@@ -37,7 +37,24 @@ jobs:
             target: Android64
 
     steps:
-      - uses: actions/checkout@v7
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Download compatible fmt
+        id: fmt
+        shell: bash
+        run: |
+          git clone --depth 1 --branch 11.1.4 \
+            https://github.com/fmtlib/fmt.git \
+            "$RUNNER_TEMP/fmt"
+
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            FMT_SOURCE="$(cygpath -m "$RUNNER_TEMP/fmt")"
+          else
+            FMT_SOURCE="$RUNNER_TEMP/fmt"
+          fi
+
+          echo "source=$FMT_SOURCE" >> "$GITHUB_OUTPUT"
 
       - name: Build the mod
         uses: geode-sdk/build-geode-mod@main
@@ -45,6 +62,7 @@ jobs:
           sdk: given
           target: ${{ matrix.config.target }}
           combine: true
+          configure-args: -DCPM_fmt_SOURCE=${{ steps.fmt.outputs.source }}
 
   package:
     name: Package builds

@@ -40,6 +40,27 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
 
+      - name: Prepare compatible Geode bindings
+        shell: bash
+        run: |
+          git clone https://github.com/geode-sdk/bindings.git \
+            "$RUNNER_TEMP/geode-bindings"
+
+          BINDINGS_COMMIT="$(git -C "$RUNNER_TEMP/geode-bindings" \
+            rev-list -n 1 --before='2024-11-20T00:00:00Z' origin/main)"
+
+          if [ -z "$BINDINGS_COMMIT" ]; then
+            echo "Could not find historical bindings commit"
+            exit 1
+          fi
+
+          git -C "$RUNNER_TEMP/geode-bindings" checkout "$BINDINGS_COMMIT"
+
+          echo "GEODE_BINDINGS_REPO_PATH=$RUNNER_TEMP/geode-bindings" \
+            >> "$GITHUB_ENV"
+
+          echo "Using bindings commit: $BINDINGS_COMMIT"
+
       - name: Download compatible fmt
         id: fmt
         shell: bash
@@ -62,7 +83,7 @@ jobs:
           sdk: given
           target: ${{ matrix.config.target }}
           combine: true
-          configure-args: -DCPM_fmt_SOURCE=${{ steps.fmt.outputs.source }}
+          configure-args: -DCPM_fmt_SOURCE=${{ steps.fmt.outputs.source }} -DSKIP_BUILDING_CODEGEN=OFF
 
   package:
     name: Package builds

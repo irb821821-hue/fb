@@ -14,8 +14,10 @@ jobs:
         config:
           - name: Windows
             os: windows-latest
+            target: Windows
           - name: macOS
             os: macos-latest
+            target: macOS
           - name: iOS
             os: macos-latest
             target: iOS
@@ -31,11 +33,11 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+      
       - name: Build the mod
         uses: geode-sdk/build-geode-mod@main
         with:
           sdk: latest
-          combine: true
           target: ${{ matrix.config.target }}
 
   package:
@@ -45,8 +47,9 @@ jobs:
 
     steps:
       - uses: geode-sdk/build-geode-mod/combine@main
-        id: build
+        id: package
+        
       - uses: actions/upload-artifact@v4
         with:
           name: Build Output
-          path: ${{ steps.build.outputs.build-output }}
+          path: ${{ steps.package.outputs.build-output }}

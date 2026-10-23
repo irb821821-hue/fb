@@ -13,8 +13,8 @@
 using namespace geode::prelude;
 
 namespace PIB {
-    constexpr std::array<int, 3> kGuidebookTargets = {15, 43, 156};
-    constexpr std::array<int, 5> kBufferStages = {2, 4, 8, 16, 0};
+    constexpr std::array<int, 3> kGuidebookTargets = {333, 514, 1050, 1721, 2027, 2174, 3442, 3490, 4095, 4226, 5090, 5268, 5495, 5785};
+    constexpr std::array<int, 5> kBufferStages = {2, 4, 8, 16, 32, 0};
 
     int g_bufferStage = 0;
     int g_physicsTick = 0;

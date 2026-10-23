@@ -13,15 +13,8 @@
 using namespace geode::prelude;
 
 namespace PIB {
-    // Example guidebook targets: 1-based physics ticks.
-    constexpr std::array<int, 3> kGuidebookTargets = {
-        15, 43, 156
-    };
-
-    // F6 cycle: 2 -> 4 -> 8 -> 16 -> OFF.
-    constexpr std::array<int, 5> kBufferStages = {
-        2, 4, 8, 16, 0
-    };
+    constexpr std::array<int, 3> kGuidebookTargets = {15, 43, 156};
+    constexpr std::array<int, 5> kBufferStages = {2, 4, 8, 16, 0};
 
     int g_bufferStage = 0;
     int g_physicsTick = 0;
@@ -36,7 +29,6 @@ namespace PIB {
 
     std::vector<PendingInput> g_pendingInputs;
     std::map<std::pair<int, bool>, int> g_buttonDelayTicks;
-
     CCLabelBMFont* g_hud = nullptr;
 
     int bufferTicks() {
@@ -45,7 +37,6 @@ namespace PIB {
 
     std::string bufferText() {
         const int ticks = bufferTicks();
-
         return ticks == 0
             ? std::string("OFF")
             : std::to_string(ticks) + " ticks";
@@ -55,7 +46,6 @@ namespace PIB {
         if (g_targetIndex >= kGuidebookTargets.size()) {
             return -1;
         }
-
         return kGuidebookTargets[g_targetIndex];
     }
 
@@ -70,10 +60,10 @@ namespace PIB {
         log::warn("[PIB] {}", message);
 
         if (auto notification = Notification::create(
-            message,
-            NotificationIcon::Info,
-            2.5f
-        )) {
+                message,
+                NotificationIcon::Info,
+                2.5f
+            )) {
             notification->show();
         }
     }
@@ -92,17 +82,14 @@ namespace PIB {
         }
 
         const int target = nextTarget();
-
-        const std::string targetText = target < 0
-            ? "done"
-            : std::to_string(target);
+        const std::string targetText =
+            target < 0 ? "done" : std::to_string(target);
 
         const std::string message =
             "PIB | buffer: " + bufferText() +
             " | tick: " + std::to_string(g_physicsTick) +
             " | target: " + targetText +
-            " | queued: " +
-            std::to_string(g_pendingInputs.size());
+            " | queued: " + std::to_string(g_pendingInputs.size());
 
         g_hud->setString(message.c_str());
     }
@@ -120,7 +107,7 @@ namespace PIB {
         std::stable_sort(
             g_pendingInputs.begin(),
             g_pendingInputs.end(),
-            [](PendingInput const& a, PendingInput const& b) {
+            [](const PendingInput& a, const PendingInput& b) {
                 return a.targetTick < b.targetTick;
             }
         );
@@ -128,19 +115,18 @@ namespace PIB {
 }
 
 // F6 keyboard hook.
+// Important: this SDK's signature has exactly three arguments.
 class $modify(PIBKeyboardDispatcher, CCKeyboardDispatcher) {
     bool dispatchKeyboardMSG(
         cocos2d::enumKeyCodes key,
         bool isKeyDown,
-        bool isKeyRepeat,
-        double timestamp
+        bool isKeyRepeat
     ) {
         const bool result =
             CCKeyboardDispatcher::dispatchKeyboardMSG(
                 key,
                 isKeyDown,
-                isKeyRepeat,
-                timestamp
+                isKeyRepeat
             );
 
         if (
@@ -153,37 +139,27 @@ class $modify(PIBKeyboardDispatcher, CCKeyboardDispatcher) {
 
         return result;
     }
-}
+};
 
-// Input interception and queued-event processing.
+// Intercept eligible jump presses.
 class $modify(PIBGameLayer, GJBaseGameLayer) {
-    void handleButton(
-        bool down,
-        int button,
-        bool isPlayer1
-    ) {
+    void handleButton(bool down, int button, bool isPlayer1) {
         auto* playLayer = PlayLayer::get();
 
-        // Only alter active gameplay and the ordinary jump button.
         if (
             !playLayer ||
             static_cast<GJBaseGameLayer*>(playLayer) != this ||
             !playLayer->m_started ||
             button != 1
         ) {
-            GJBaseGameLayer::handleButton(
-                down, button, isPlayer1
-            );
+            GJBaseGameLayer::handleButton(down, button, isPlayer1);
             return;
         }
 
-        const auto buttonKey = std::make_pair(
-            button, isPlayer1
-        );
-
+        const auto buttonKey = std::make_pair(button, isPlayer1);
         const int candidateTick = PIB::g_physicsTick + 1;
 
-        // Shift a release by the same amount as its delayed press.
+        // Preserve the hold duration if a press was delayed.
         if (!down) {
             auto it = PIB::g_buttonDelayTicks.find(buttonKey);
 
@@ -202,37 +178,27 @@ class $modify(PIBGameLayer, GJBaseGameLayer) {
                 }
             }
 
-            GJBaseGameLayer::handleButton(
-                down, button, isPlayer1
-            );
+            GJBaseGameLayer::handleButton(down, button, isPlayer1);
             return;
         }
 
         PIB::advancePastMissedTargets(candidateTick);
-
         const int targetTick = PIB::nextTarget();
 
-        // Exact-tick input: pass through normally.
-        if (
-            targetTick >= 0 &&
-            targetTick == candidateTick
-        ) {
+        // Exact target: no correction needed.
+        if (targetTick >= 0 && targetTick == candidateTick) {
             ++PIB::g_targetIndex;
-
-            GJBaseGameLayer::handleButton(
-                down, button, isPlayer1
-            );
+            GJBaseGameLayer::handleButton(down, button, isPlayer1);
             return;
         }
 
-        // Qualifying early input: queue it for the target tick.
+        // Early input: defer it if it falls within the active buffer.
         if (targetTick > candidateTick) {
             const int delay = targetTick - candidateTick;
             const int maxEarlyTicks = PIB::bufferTicks();
 
             if (delay > 0 && delay <= maxEarlyTicks) {
                 ++PIB::g_targetIndex;
-
                 PIB::g_buttonDelayTicks[buttonKey] = delay;
 
                 PIB::g_pendingInputs.push_back({
@@ -243,41 +209,33 @@ class $modify(PIBGameLayer, GJBaseGameLayer) {
                 });
 
                 log::info(
-                    "[PIB] Buffered press at tick {} for "
-                    "target {} (delay {})",
+                    "[PIB] Buffered press at tick {} for target {} "
+                    "(delay {})",
                     candidateTick,
                     targetTick,
                     delay
                 );
-
                 return;
             }
         }
 
-        // Late or out-of-range inputs remain unchanged.
-        GJBaseGameLayer::handleButton(
-            down, button, isPlayer1
-        );
+        // Late or out-of-range input stays unchanged.
+        GJBaseGameLayer::handleButton(down, button, isPlayer1);
     }
 
     void processCommands(float dt) {
         auto* playLayer = PlayLayer::get();
 
-        const bool isActivePlayLayer =
+        const bool active =
             playLayer &&
             static_cast<GJBaseGameLayer*>(playLayer) == this &&
             playLayer->m_started;
 
-        if (isActivePlayLayer) {
+        if (active) {
             ++PIB::g_physicsTick;
-
-            PIB::advancePastMissedTargets(
-                PIB::g_physicsTick
-            );
-
+            PIB::advancePastMissedTargets(PIB::g_physicsTick);
             PIB::sortPendingInputs();
 
-            // Dispatch due inputs before original command processing.
             auto it = PIB::g_pendingInputs.begin();
 
             while (it != PIB::g_pendingInputs.end()) {
@@ -285,7 +243,6 @@ class $modify(PIBGameLayer, GJBaseGameLayer) {
                     const auto event = *it;
                     it = PIB::g_pendingInputs.erase(it);
 
-                    // Call the original implementation directly.
                     GJBaseGameLayer::handleButton(
                         event.down,
                         event.button,
@@ -299,20 +256,17 @@ class $modify(PIBGameLayer, GJBaseGameLayer) {
 
         GJBaseGameLayer::processCommands(dt);
     }
-}
+}; // Required class-ending semicolon
 
-// HUD and attempt lifecycle.
+// Create the status HUD when a level starts.
 class $modify(PIBPlayLayer, PlayLayer) {
     bool init(
         GJGameLevel* level,
         bool useReplay,
         bool dontCreateObjects
     ) {
-        const bool result = PlayLayer::init(
-            level,
-            useReplay,
-            dontCreateObjects
-        );
+        const bool result =
+            PlayLayer::init(level, useReplay, dontCreateObjects);
 
         if (!result) {
             return false;
@@ -320,7 +274,7 @@ class $modify(PIBPlayLayer, PlayLayer) {
 
         PIB::resetAttempt();
 
-        auto winSize =
+        const auto winSize =
             CCDirector::sharedDirector()->getWinSize();
 
         auto* label = CCLabelBMFont::create(
@@ -329,13 +283,9 @@ class $modify(PIBPlayLayer, PlayLayer) {
         );
 
         if (label) {
-            label->setAnchorPoint({ 0.f, 1.f });
+            label->setAnchorPoint({0.f, 1.f});
             label->setScale(0.38f);
-            label->setPosition({
-                8.f,
-                winSize.height - 8.f
-            });
-
+            label->setPosition({8.f, winSize.height - 8.f});
             this->addChild(label, 999999);
 
             PIB::g_hud = label;
@@ -372,10 +322,10 @@ $on_mod(Loaded) {
     );
 
     if (auto notification = Notification::create(
-        "PIB loaded - press F6 to change buffer",
-        NotificationIcon::Info,
-        4.0f
-    )) {
+            "PIB loaded - press F6 to change buffer",
+            NotificationIcon::Info,
+            4.0f
+        )) {
         notification->show();
     }
 }
